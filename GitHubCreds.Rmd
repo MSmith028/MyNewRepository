@@ -1,0 +1,65 @@
+---
+title: "Testing"
+output: html_document
+date: "2024-06-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+install.packages("usethis")
+library(usethis)
+```
+
+```{r}
+usethis::create_github_token()
+gitcreds::gitcreds_set()
+use_git_config(user.name = "MSmith028", user.email = "mattlsmith028@gmail.com")
+```
+
+```{r}
+git_sitrep()
+```
+
+
+### Rundown on Github vocabulary
+
+Repository = A house for your project files
+Cloning = Making a copy or your repository for posit cloud (or wherever you are working)
+Personal Access Token = A key or fancy password to give us access to Github
+Commit = Adding some file changes to a branch
+Pushing = A transfer of files from where we are working to Github
+
+```{r}
+pr_init(branch = "New-Branch")
+```
+
+Make a file change and save it.
+
+In the Git tab, check the "staged" box next to the file you made.
+
+Click the commit button.
+
+Write a descriptive commit message.
