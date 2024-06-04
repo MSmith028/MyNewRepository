@@ -52,6 +52,8 @@ Personal Access Token = A key or fancy password to give us access to Github
 Commit = Adding some file changes to a branch
 Pushing = A transfer of files from where we are working to Github
 
+## Making a Pull Request
+
 ```{r}
 pr_init(branch = "New-Branch")
 ```
@@ -63,3 +65,11 @@ In the Git tab, check the "staged" box next to the file you made.
 Click the commit button.
 
 Write a descriptive commit message.
+
+```{r}
+pr_push()
+```
+
+This will open up a window in GIthub that creates a Pull Request.
+
+Pull Request = A method to suggest changes to a file.
