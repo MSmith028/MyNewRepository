@@ -1,0 +1,328 @@
+---
+title: "Final Data Project"
+author: "Matthew Smith"
+output: html_notebook
+---
+
+# Final Data Project
+
+## Your objectives!
+
+To complete this project there are a few requirements you will need to fulfill. Remember that you are not on your own for this project! Data science is done best as a community, so please ask others (and instructors) questions you have when you get stuck!
+
+1. Clearly state the data science question and goal for the analysis you are embarking on.
+
+2. This project should be completely uploaded and up to date on GitHub. Follow the steps in `Pushing and Pulling Changes` chapter for how to git add, commit, and push the changes you have done.
+
+3. Follow good organization principles -- you should at least have 2 folders: a `results` folder and a `data` folder. 
+
+4. You should also have a README.
+
+5. Make a resulting plot that you save to a file.
+
+6. Write up your final observations in regards to your original question. Note that some data science projects end with "This isn't what I thought it would be" or "that's strange" or "I think this is leading into another question I would need to investigate". Whatever your observations may be, write them up in your main R Markdown.
+
+7. When you feel your analysis is ready for review, send your instructor the GitHub link to your project so they can review it.
+
+8. Pat yourself on the back for all this work! You are a data scientist!
+
+## Data Sources
+
+For this project you will use whatever data you choose.
+
+Refer back to our [Finding Data chapter](https://datatrail-jhu.github.io/DataTrail/finding-data.html) for more info on finding data.
+
+Some options for places to find data are:
+
+- [Kaggle](https://datatrail-jhu.github.io/DataTrail/finding-data.html#kaggle)
+- [FiveThirtyEight](https://datatrail-jhu.github.io/DataTrail/finding-data.html#fivethirtyeight-data)
+- You can see datasets you already have in R by running this command: `ls("package:datasets")`.
+
+You are not limited to these options for finding your data.
+
+<Write where you got your data and provide the link if applicable.>
+
+<Describe how the data was originally created. If this is data that is part of `datasets` you can use the `?` like so: ` ?datasets::AirPassengers` to see information about the datasets.Otherwise provide a summary based on the source of the data.>
+
+## The goal of this analysis
+
+We will be finding out which type of Pokemon has the best average base stats to see what typing of Pokemon would be statistically the best combo.
+
+## Set up
+
+Time to load the packages I will need for this analysis.
+
+```{r}
+## you can add more, or change...these are suggestions
+library(tidyverse)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(naniar)
+library(devtools)
+library(knitr)
+```
+
+I will also be adding "patchwork" from thomasp85 on Github. Link to the Github is (https://github.com/thomasp85/patchwork). It will allow for side by side plots while plotting as i'll demonstate later.
+
+```{r}
+devtools::install_github("thomasp85/patchwork")
+library(patchwork)
+```
+
+## Set up directories
+
+I'll now set up the directories I will need.
+
+```{r}
+if (!dir.exists("data")) {
+  dir.create("data")
+}
+if (!dir.exists("results")) {
+  dir.create("results")
+}
+```
+
+
+## Get the data
+
+The dataset I will be using is from (https://www.kaggle.com/datasets/mrdew25/pokemon-database) and it contains all 1000+ Pokemon, any Pokemon additional forms, their stats, weight, and much more from all 9 Generations of Pokemon. (Fancy way of saying all 9 main series entries.)
+
+```{r}
+# Read in your dataset(s)
+pokemon1_df <- read_csv("../06_Sharing_Results/data/Pokemon Database.csv")
+```
+
+We will start with a summary of the dataset.
+
+```{r}
+summary(pokemon1_df)
+```
+
+That's a lot to take in, but I did say the dataset contained "much more." Now we'll take a small look into what the dataset holds.
+
+```{r}
+head(pokemon1_df, 10)
+```
+
+As you can see, while the data is contains all Pokemon, it also contains all forms and variants that a Pokemon has. We don't really need all of it today, so we are going to begin the cleaning process so we can plot it and answer of questions.
+
+## Cleaning the data
+
+First, we will use the 'janitor::clean_names' function to clean the column names. Instead of names like "Pokemon Name" and "Pokedex Number", we want them to look like "pokemon_name" and "pokedex_number". So let's run the code now.
+
+```{r}
+pokemon1_df <- janitor::clean_names(pokemon1_df)
+```
+
+Let see if that cleaned them up.
+
+```{r}
+colnames(pokemon1_df)
+```
+
+Great! It worked as intended. Now we will use the 'select' function from the 'dplyr' package 
+to select all the necessary variables we need for the project.
+
+```{r}
+pokemon1_df <- pokemon1_df %>% select(pokedex_number, pokemon_name, primary_type, secondary_type, attack_stat, defense_stat, special_attack_stat, special_defense_stat, speed_stat, health_stat)
+```
+
+We have selected what we need but there is still quotation marks around the names and types of the Pokemon. We want to remove those, so we will use the 'gsub' function to remove them from the 3 columns where they reside.
+
+```{r}
+pokemon1_df$pokemon_name <- gsub('"','', pokemon1_df$pokemon_name) 
+pokemon1_df$primary_type <- gsub('"','', pokemon1_df$primary_type) 
+pokemon1_df$secondary_type <- gsub('"','', pokemon1_df$secondary_type)
+```
+
+Did it work? Let's find out.
+
+```{r}
+pokemon1_df
+```
+Excellent. Now we need to remove the extra variants and forms listed in the data frame as we want to focus on the original versions of Pokemon. The 'distinct' function will select only the first occurrence of the Pokemon.
+
+```{r}
+allpokemon <- pokemon1_df %>% distinct(pokemon_name, .keep_all = TRUE)
+head(allpokemon,10)
+```
+
+Now we have only the original versions of all the Pokemon. The 'secondary_type' column has "NULL" variables, as some Pokemon do not have a second type. We won't be focusing on secondary types, but we might as well switch them to "NA" values.  
+
+```{r}
+allpokemon <- allpokemon %>% replace_with_na(allpokemon$secondary_type, replace = list(secondary_type = "NULL"))
+head(allpokemon,10)
+```
+
+Now that everything is cleaned up, we shall begin the plotting process to find our Ultimate Pokemon. (I'll recap the results at the end.)
+
+## Plot the data!
+
+To start off, we are going to get the averages for each stat by type and plot them. First we will group all Pokemon into groups by type with the 'group_by' function. In the same code, we will get the stat averages by summarizing by the mean for each stat. 
+
+```{r}
+allpokemonplotting <- allpokemon %>% group_by(primary_type) %>% summarise(avg_hp = mean(health_stat), avg_speed = mean(speed_stat), avg_attack = mean(attack_stat), avg_spec_attack = mean(special_attack_stat), avg_defense = mean(defense_stat), avg_spec_defense = mean(special_defense_stat))
+```
+
+Now that we have the averages, we are going to see which types have the most Pokemon with a that primary type.... as a plot! Yay! (I'll recap the results at the end.)
+
+```{r}
+ggplot(allpokemon, aes(x = primary_type)) +
+  geom_bar(fill = "yellow", color = "blue", size = 1) +
+  labs(title = "Pokemon Main Type",
+       x = "Main Types",
+       y = "# of Pokemon") +
+  theme(axis.text.x = element_text(size = 8, angle = 90))
+```
+The Water, Normal, and Grass have the most Pokemon with that primary type. Does it means one of those will be the best type in the end? Only time will tell. Now we will put to work the 'patchwork' package we installed earlier. Using it, we will now look at the average Health and Speed stats for each type. 
+(Health stat refers to Hit Points, i.e. How many hits it can take before it faints, Speed is... well speed.)
+
+
+```{r}
+p1 <- ggplot(allpokemonplotting, aes(x = primary_type,y = avg_hp)) +
+  geom_bar(stat = "identity", fill = "red", color = "white") +
+  labs(title = "Average Health Stat for each Pokemon type",
+       x = "Main Types",
+       y = "Average Health Stat") +
+  theme(axis.text.x = element_text(size = 8, angle = 90))
+
+p2 <- ggplot(allpokemonplotting, aes(x = primary_type,y = avg_speed)) +
+  geom_bar(stat = "identity", fill = "blue", color = "red") +
+  labs(title = "Average Speed Stat for each Pokemon type",
+       x = "Main Types",
+       y = "Average Speed Stat") +
+  theme(axis.text.x = element_text(size = 8, angle = 90))
+
+p1 + p2
+```
+
+Dragon, Normal, and Fighting are the 3 with the highest average health while Electric, Flying, and Dragon are the fastest types. So far, Dragon is 2 for 2 in top 3 for stats. Let's see if that trend continues. Now we will look at the Attack and Special Attack stat averages per type.
+(Attack refers to moves that are a physical attack like Headbutt, High Jump Kick, or Dynamic Punch. Special Attack refers to non-physical attack like a Ember, Thunderbolt, and Razor Leaf.)
+
+```{r}
+p3 <- ggplot(allpokemonplotting, aes(x = primary_type,y = avg_attack)) +
+  geom_bar(stat = "identity", fill = "gray15", color = "yellow") +
+  labs(title = "Average Attack Stat for each Pokemon type",
+       x = "Main Types",
+       y = "Average Attack Stat") +
+  theme(axis.text.x = element_text(size = 8, angle = 90))
+
+p4 <- ggplot(allpokemonplotting, aes(x = primary_type,y = avg_spec_attack)) +
+  geom_bar(stat = "identity", fill = "purple3", color = "red3") +
+  labs(title = "Average Special Attack Stat for each Pokemon type",
+       x = "Main Types",
+       y = "Average Special Attack Stat") +
+  theme(axis.text.x = element_text(size = 8, angle = 90))
+
+p3 + p4
+```
+Fighting, Dragon, and Ground types are the top 3 physical attackers while Psychic, Electric, and Ghost have the best non-physical attackers. Dragon is a front-runner for 1 of the 2 types for our Ultimate Pokemon, while Electric and Fighting types now have 2 stats in Top 3. Finally, we are going to look at Defense and Special Defense stats and recap afterwards. (Defense and Special Defense are how well they can resist Attack and Special Attack.)
+
+
+```{r}
+p5 <- ggplot(allpokemonplotting, aes(x = primary_type,y = avg_defense)) +
+  geom_bar(stat = "identity", fill = "white", color = "black") +
+  labs(title = "Average Defense Stat for each Pokemon type",
+       x = "Main Types",
+       y = "Average Defense Stat") +
+  theme(axis.text.x = element_text(size = 8, angle = 90))
+
+p6 <- ggplot(allpokemonplotting, aes(x = primary_type,y = avg_spec_defense)) +
+  geom_bar(stat = "identity", fill = "gray75", color = "gold") +
+  labs(title = "Average Special Defense Stat for each Pokemon type",
+       x = "Main Types",
+       y = "Average Special Defense Stat") +
+  theme(axis.text.x = element_text(size = 8, angle = 90))
+
+p5 + p6
+```
+Steel, Rock, and Ground are the best type for physical defense and Fairy, Ghost and Psychic are best against non-physical attack. We now have seen the top 3 types for each stat. Let's recap.
+
+Best HP: Dragon, Normal, and Fighting
+Best Speed: Electric, Flying, and Dragon
+Best Attack: Fighting, Dragon, and Ground
+Best Special Attack: Psychic, Electric, and Ghost
+Best Defense: Steel, Rock, and Ground
+Best Special Defense: Fairy, Ghost, and Psychic
+
+Dragon is top 3 in 3 different stats so it's safe to say Dragon should be one of the 2 types for our Ultimate Pokemon. How do we determine the second typing? After all, Fighting, Electric, Ground, Psychic, and Ghost types all have top 3 in 2 different stats. We determine it through the "Type Chart". The type chart refers to the effectiveness of one type to another. 
+
+I have an image of it so let's read it in using the 'include_graphics' function (that I learned about while Googling. Thanks Google!) that's apart of the 'knitr' package.
+
+```{r}
+include_graphics(path = "../06_Sharing_Results/data/Pokemon_Type_Chart.png")
+```
+
+Looking at the chart, we can see each types weaknesses and strengths against each other. Let's use this to make our educated guess as to what should be the second typing. We'll start with the weaknesses of the potential types.
+
+Fighting: Weak to Flying, Psychic, and Fairy.
+Electric: Weak to only Ground.
+Ground: Weak to Water, Grass, and Ice.
+Psychic: Weak to Bug, Ghost, and Dark.
+Ghost: Weak to Ghost and Dark. 
+
+Electric has only 1 weakness and it's the Ground type. Meanwhile everything else has at least 2 weaknesses. Would that be the best pairing for Dragon? Let's see what Dragon's weaknesses are as well to determine.
+
+Dragon: Weak to Ice, Dragon, and Fairy.
+
+Immediately, Fighting cannot be the secondary typing because both Dragon and Fighting are weak to Fairy so it would be 4x effective on it. Ground is out as well as a Dragon/Ground Pokemon would be 4x weak to the Ice type. That leaves 3 types: Electric, Psychic, and Ghost. How do we narrow it down from here? Lets look at the remaining types strengths against other types to see if anything makes the best combo.
+
+Dragon: Strong against only Dragon.
+Electric: Strong against Water and Flying.
+Psychic: Strong against Fighting and Poison.
+Ghost: Strong against Psychic and Ghost. 
+
+That doesn't give us an immediate answer, but with Dragon and Ghost being 2x effective against itself, that would mean only Dragon and Ghost could do serious damage to it, right? Maybe. Some Pokemon types have a resistance to other types meaning it is only half effective to a type. These are usually just the types it is strong against, but let's list the 4 types and their resistances.
+
+Dragon: Resist Fire, Water, Grass, and Electric.
+Electric: Resist Electric, Flying, and Steel.
+Psychic: Resists Fighting and Psychic.
+Ghost: Resists Poison and Bug.
+
+After gathering the strengths, weaknesses, and resistances of the types, there is only 1 thing left to see: If a type has immunity to a type and vice versa. There are not many but let's see. 
+
+Dragon: Does not affect Fairy, Immune to no types.
+Electric: Does not affect Ground, Immune to no types.
+Psychic: Does not affect Dark, Immune to no types.
+Ghost: Does not affect Normal, Immune to Normal and Fighting.
+
+After taking all the info into consideration, it's time to find our answer. What 2 types would make the best Pokemon statistically? Lets wrap it all up by looking at which Dual-Type Dragon type can be the most effective type and stat wise.
+
+Dragon/Electric: #1 in HP and Speed, #2 in Attack and Special Attack. Strong against Dragon, Water, and Flying. Weak to Dragon and Ground.
+
+Dragon/Psychic: #1 in HP and Special Attack, #2 in Attack, and #3 in Special Defense. Strong against Dragon, Fighting, and Poison, Weak to Dragon.
+
+Dragon/Ghost: #1 in HP, #2 in Attack and Special Defense, #3 in Speed and Special Attack. Strong against Dragon, Psychic, and Ghost. Weak to Dragon and Ghost.
+
+## Get the stats
+
+Out of the 3 type combos, which one has the best all-around performance? While all three combos are great, with a top 3 Placement in 5 of the 6 base stats, being weak to only Pokemon with the same type, and immunity to 2 types, I believe Dragon/Ghost is the Best typing a Pokemon can have. 
+
+Is this the definitive answer? No. There are still other variables in the games that could affect the outcome like items held, abilities, and more. But if you were looking to have a Pokemon on your team for an entire game, you would want a Dragon, Ghost, or Dragon/Ghost somewhere on the team.
+
+### Conclusion
+
+Write up your thoughts about this data science project here and answer the following questions:
+
+- What did you find out in regards to your original question?
+
+I found out what typing could be the best by looking at stats & effectiveness of the type against other types. 
+
+- What exceptions or caveats do you have in regards to your analysis you did?
+
+I omitted a lot of variables that could be interesting to look at in the future.
+
+- What follow up questions do you have?
+
+I wonder if I kept the additional forms, would that change the top 3 types in stats?
+There were many other variables like experience growth. Are there certain types that have a slower level of growth than other types?
+
+## Print out session info
+
+Session info is a good thing to print out at the end of your notebooks so that you (and other folks) referencing your notebooks know what software versions and libraries you used to run the notebook.
+
+```{r}
+sessionInfo()
+```
